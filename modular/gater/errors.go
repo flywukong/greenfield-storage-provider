@@ -1,7 +1,10 @@
 package gater
 
 import (
+	"bytes"
+	"encoding/json"
 	"encoding/xml"
+	"fmt"
 	"net/http"
 	"strconv"
 
@@ -53,8 +56,18 @@ var (
 	ErrConsensus = gfsperrors.Register(module.GateModularName, http.StatusBadRequest, 55001, "server slipped away, try again later")
 )
 
+// ErrResponse define the information of the error response
+type ErrResponse struct {
+	XMLName    xml.Name `xml:"Error"`
+	Code       string   `xml:"Code"`
+	Message    string   `xml:"Message"`
+	StatusCode int
+}
+
 func MakeErrorResponse(w http.ResponseWriter, err error) {
 	gfspErr := gfsperrors.MakeGfSpError(err)
+	log.Debugw("get xml info:", "code", gfspErr.GetInnerCode())
+	log.Debugw("get xml info:", "msg", gfspErr.GetDescription())
 	var xmlInfo = struct {
 		XMLName xml.Name `xml:"Error"`
 		Code    int32    `xml:"Code"`
@@ -66,11 +79,31 @@ func MakeErrorResponse(w http.ResponseWriter, err error) {
 	xmlBody, err := xml.Marshal(&xmlInfo)
 	if err != nil {
 		log.Errorw("failed to marshal error response", "error", gfspErr.String())
+		log.Panicw("failed to marshal error response", "error", gfspErr.String())
 	}
 	w.Header().Set(ContentTypeHeader, ContentTypeXMLHeaderValue)
 	w.WriteHeader(int(gfspErr.GetHttpStatusCode()))
-	w.Write(xmlBody)
-	if _, err = w.Write(xmlBody); err != nil {
-		log.Errorw("failed to write error response", "error", gfspErr.String())
+	//w.Write(xmlBody)
+	/*
+		if _, err = w.Write(xmlBody); err != nil {
+			log.Errorw("failed to write error response", "error", gfspErr.String())
+			log.Errorw("failed to write error response", "error", gfspErr.String())
+		}
+	*/
+	resp := make(map[string]string)
+	resp["message"] = "Success"
+	jsonResp, err := json.Marshal(resp)
+	if err != nil {
+		log.Errorw("Error happened in JSON marshal. Err:", "error", err)
 	}
+	w.Write(jsonResp)
+
+	errResp := ErrResponse{}
+	errResp.StatusCode = int(gfspErr.GetHttpStatusCode())
+	decodeErr := xml.NewDecoder(bytes.NewReader(xmlBody)).Decode(&errResp)
+	if decodeErr != nil {
+		log.Errorw("decode  error response", "error", gfspErr.String())
+	}
+
+	fmt.Println("xml info:", errResp.Message)
 }
