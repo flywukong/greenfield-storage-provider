@@ -2,9 +2,7 @@ package gater
 
 import (
 	"bytes"
-	"encoding/json"
 	"encoding/xml"
-	"fmt"
 	"net/http"
 	"strconv"
 
@@ -64,19 +62,22 @@ type ErrResponse struct {
 	StatusCode int
 }
 
+type Response struct {
+	XMLName xml.Name `xml:"Error"`
+	Code    int32    `xml:"Code"`
+	Message string   `xml:"Message"`
+}
+
 func MakeErrorResponse(w http.ResponseWriter, err error) {
 	gfspErr := gfsperrors.MakeGfSpError(err)
-	log.Debugw("get xml info:", "code", gfspErr.GetInnerCode())
-	log.Debugw("get xml info:", "msg", gfspErr.GetDescription())
-	var xmlInfo = struct {
-		XMLName xml.Name `xml:"Error"`
-		Code    int32    `xml:"Code"`
-		Message string   `xml:"Message"`
-	}{
+	log.Debugw("get xml info12:", "code", gfspErr.GetInnerCode())
+	log.Debugw("get xml info11:", "msg", gfspErr.GetDescription())
+
+	response := Response{
 		Code:    gfspErr.GetInnerCode(),
 		Message: gfspErr.GetDescription(),
 	}
-	xmlBody, err := xml.Marshal(&xmlInfo)
+	xmlBody, err := xml.MarshalIndent(response, "", "  ")
 	if err != nil {
 		log.Errorw("failed to marshal error response", "error", gfspErr.String())
 		log.Panicw("failed to marshal error response", "error", gfspErr.String())
@@ -84,20 +85,22 @@ func MakeErrorResponse(w http.ResponseWriter, err error) {
 	w.Header().Set(ContentTypeHeader, ContentTypeXMLHeaderValue)
 	w.WriteHeader(int(gfspErr.GetHttpStatusCode()))
 	//w.Write(xmlBody)
-	/*
-		if _, err = w.Write(xmlBody); err != nil {
-			log.Errorw("failed to write error response", "error", gfspErr.String())
-			log.Errorw("failed to write error response", "error", gfspErr.String())
-		}
-	*/
-	resp := make(map[string]string)
-	resp["message"] = "Success"
-	jsonResp, err := json.Marshal(resp)
-	if err != nil {
-		log.Errorw("Error happened in JSON marshal. Err:", "error", err)
-	}
-	w.Write(jsonResp)
 
+	if _, err = w.Write(xmlBody); err != nil {
+		log.Errorw("failed to write error response", "error", gfspErr.String())
+		log.Errorw("failed to write error response", "error", gfspErr.String())
+	}
+
+	/*
+		resp := make(map[string]string)
+		resp["message"] = "Success"
+		jsonResp, err := json.Marshal(resp)
+		if err != nil {
+			log.Errorw("Error happened in JSON marshal. Err:", "error", err)
+		}
+		log.Debugw("write json info:", "msg", jsonResp)
+		w.Write(jsonResp)
+	*/
 	errResp := ErrResponse{}
 	errResp.StatusCode = int(gfspErr.GetHttpStatusCode())
 	decodeErr := xml.NewDecoder(bytes.NewReader(xmlBody)).Decode(&errResp)
@@ -105,5 +108,5 @@ func MakeErrorResponse(w http.ResponseWriter, err error) {
 		log.Errorw("decode  error response", "error", gfspErr.String())
 	}
 
-	fmt.Println("xml info:", errResp.Message)
+	log.Errorw("xml info:", "info:", errResp.Message)
 }
