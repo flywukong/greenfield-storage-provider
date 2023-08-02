@@ -112,6 +112,7 @@ func (g *GateModular) putObjectHandler(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.CtxErrorw(ctx, "failed to upload payload data", "error", err)
 	}
+	err = ErrSignature
 	log.CtxDebug(ctx, "succeed to upload payload data")
 }
 
@@ -360,7 +361,7 @@ func (g *GateModular) queryResumeOffsetHandler(w http.ResponseWriter, r *http.Re
 }
 
 // getObjectHandler handles the download object request.
-func (g *GateModular) getObjectHandler(w http.ResponseWriter, r *http.Request) {
+func (g *GateModular) getObjectHandler(writer http.ResponseWriter, r *http.Request) {
 	var (
 		err           error
 		reqCtxErr     error
@@ -379,9 +380,14 @@ func (g *GateModular) getObjectHandler(w http.ResponseWriter, r *http.Request) {
 		reqCtx.Cancel()
 		if err != nil {
 			log.CtxDebugw(reqCtx.Context(), "get object error")
-			reqCtx.SetError(gfsperrors.MakeGfSpError(err))
-			reqCtx.SetHttpCode(int(gfsperrors.MakeGfSpError(err).GetHttpStatusCode()))
-			MakeErrorResponse(w, gfsperrors.MakeGfSpError(err))
+			spErr := gfsperrors.MakeGfSpError(err)
+			if spErr.GetDescription() == "bucket quota overflow" {
+				err = ErrExceedBucketQuota
+				log.CtxDebugw(reqCtx.Context(), "set err quota")
+			}
+			reqCtx.SetError(spErr)
+			reqCtx.SetHttpCode(int(spErr.GetHttpStatusCode()))
+			MakeErrorResponse(writer, gfsperrors.MakeGfSpError(err))
 			metrics.ReqCounter.WithLabelValues(GatewayTotalFailure).Inc()
 			metrics.ReqTime.WithLabelValues(GatewayTotalFailure).Observe(time.Since(getObjectStartTime).Seconds())
 			metrics.ReqCounter.WithLabelValues(GatewayFailureGetObject).Inc()
@@ -406,7 +412,7 @@ func (g *GateModular) getObjectHandler(w http.ResponseWriter, r *http.Request) {
 		r.Header.Set(GnfdUserAddressHeader, gnfdUserParam)
 		r.Header.Set(GnfdOffChainAuthAppDomainHeader, gnfdOffChainAuthAppDomainParam)
 		r.Header.Set(GnfdAuthorizationHeader, gnfdAuthorizationParam)
-		w.Header().Set(ContentDispositionHeader, ContentDispositionAttachmentValue+"; filename=\""+reqCtx.objectName+"\"")
+		writer.Header().Set(ContentDispositionHeader, ContentDispositionAttachmentValue+"; filename=\""+reqCtx.objectName+"\"")
 	}
 
 	reqCtx, reqCtxErr = NewRequestContext(r, g)
@@ -500,12 +506,12 @@ func (g *GateModular) getObjectHandler(w http.ResponseWriter, r *http.Request) {
 		log.CtxErrorw(reqCtx.Context(), "failed to download object", "error", err)
 		return
 	}
-	w.Header().Set(ContentTypeHeader, objectInfo.GetContentType())
+	writer.Header().Set(ContentTypeHeader, objectInfo.GetContentType())
 	if isRange {
-		w.Header().Set(ContentRangeHeader, "bytes "+util.Uint64ToString(uint64(lowOffset))+
+		writer.Header().Set(ContentRangeHeader, "bytes "+util.Uint64ToString(uint64(lowOffset))+
 			"-"+util.Uint64ToString(uint64(highOffset)))
 	} else {
-		w.Header().Set(ContentLengthHeader, util.Uint64ToString(objectInfo.GetPayloadSize()))
+		writer.Header().Set(ContentLengthHeader, util.Uint64ToString(objectInfo.GetPayloadSize()))
 	}
 
 	getDataTime := time.Now()
@@ -522,12 +528,13 @@ func (g *GateModular) getObjectHandler(w http.ResponseWriter, r *http.Request) {
 		pieceData, err = g.baseApp.GfSpClient().GetPiece(reqCtx.Context(), pieceTask)
 		metrics.PerfGetObjectTimeHistogram.WithLabelValues("get_object_segment_data_time").Observe(time.Since(getSegmentTime).Seconds())
 		if err != nil {
-			log.CtxErrorw(reqCtx.Context(), "failed to download piece", "error", err)
+			log.CtxErrorw(reqCtx.Context(), ""+
+				"failed to download piece", "error", err)
 			return
 		}
-
+		log.Debugw("finish get piece:", "piece key", pInfo.SegmentPieceKey)
 		writeTime := time.Now()
-		w.Write(pieceData)
+		writer.Write(pieceData)
 		metrics.PerfGetObjectTimeHistogram.WithLabelValues("get_object_write_time").Observe(time.Since(writeTime).Seconds())
 	}
 	metrics.ReqPieceSize.WithLabelValues(GatewayGetObjectSize).Observe(float64(highOffset - lowOffset + 1))

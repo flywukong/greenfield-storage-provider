@@ -1,7 +1,6 @@
 package gater
 
 import (
-	"bytes"
 	"encoding/xml"
 	"net/http"
 	"strconv"
@@ -50,8 +49,8 @@ var (
 	ErrNotifySwapOut          = gfsperrors.Register(module.GateModularName, http.StatusInternalServerError, 50034, "server slipped away, try again later")
 	ErrInvalidRedundancyIndex = gfsperrors.Register(module.GateModularName, http.StatusInternalServerError, 50035, "invalid redundancy index")
 	ErrBucketUnavailable      = gfsperrors.Register(module.GateModularName, http.StatusForbidden, 50036, "bucket is not in service status")
-
-	ErrConsensus = gfsperrors.Register(module.GateModularName, http.StatusBadRequest, 55001, "server slipped away, try again later")
+	ErrExceedBucketQuota      = gfsperrors.Register(module.DownloadModularName, http.StatusNotAcceptable, 30004, "bucket quota overflow")
+	ErrConsensus              = gfsperrors.Register(module.GateModularName, http.StatusBadRequest, 55001, "server slipped away, try again later")
 )
 
 // ErrResponse define the information of the error response
@@ -80,33 +79,12 @@ func MakeErrorResponse(w http.ResponseWriter, err error) {
 	xmlBody, err := xml.MarshalIndent(response, "", "  ")
 	if err != nil {
 		log.Errorw("failed to marshal error response", "error", gfspErr.String())
-		log.Panicw("failed to marshal error response", "error", gfspErr.String())
 	}
 	w.Header().Set(ContentTypeHeader, ContentTypeXMLHeaderValue)
 	w.WriteHeader(int(gfspErr.GetHttpStatusCode()))
-	//w.Write(xmlBody)
 
 	if _, err = w.Write(xmlBody); err != nil {
 		log.Errorw("failed to write error response", "error", gfspErr.String())
-		log.Errorw("failed to write error response", "error", gfspErr.String())
 	}
 
-	/*
-		resp := make(map[string]string)
-		resp["message"] = "Success"
-		jsonResp, err := json.Marshal(resp)
-		if err != nil {
-			log.Errorw("Error happened in JSON marshal. Err:", "error", err)
-		}
-		log.Debugw("write json info:", "msg", jsonResp)
-		w.Write(jsonResp)
-	*/
-	errResp := ErrResponse{}
-	errResp.StatusCode = int(gfspErr.GetHttpStatusCode())
-	decodeErr := xml.NewDecoder(bytes.NewReader(xmlBody)).Decode(&errResp)
-	if decodeErr != nil {
-		log.Errorw("decode  error response", "error", gfspErr.String())
-	}
-
-	log.Errorw("xml info:", "info:", errResp.Message)
 }
