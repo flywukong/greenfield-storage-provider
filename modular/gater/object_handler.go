@@ -382,7 +382,7 @@ func (g *GateModular) getObjectHandler(writer http.ResponseWriter, r *http.Reque
 			log.CtxDebugw(reqCtx.Context(), "get object error")
 			spErr := gfsperrors.MakeGfSpError(err)
 			if spErr.GetDescription() == "bucket quota overflow" {
-				err = ErrExceedBucketQuota
+				err = ErrBucketQuota
 				log.CtxDebugw(reqCtx.Context(), "set err quota")
 			}
 			reqCtx.SetError(spErr)

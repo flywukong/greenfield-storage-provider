@@ -49,7 +49,7 @@ var (
 	ErrNotifySwapOut          = gfsperrors.Register(module.GateModularName, http.StatusInternalServerError, 50034, "server slipped away, try again later")
 	ErrInvalidRedundancyIndex = gfsperrors.Register(module.GateModularName, http.StatusInternalServerError, 50035, "invalid redundancy index")
 	ErrBucketUnavailable      = gfsperrors.Register(module.GateModularName, http.StatusForbidden, 50036, "bucket is not in service status")
-	ErrExceedBucketQuota      = gfsperrors.Register(module.DownloadModularName, http.StatusNotAcceptable, 30004, "bucket quota overflow")
+	ErrBucketQuota            = gfsperrors.Register(module.GateModularName, http.StatusNotAcceptable, 50037, "bucket quota overflow")
 	ErrConsensus              = gfsperrors.Register(module.GateModularName, http.StatusBadRequest, 55001, "server slipped away, try again later")
 )
 
