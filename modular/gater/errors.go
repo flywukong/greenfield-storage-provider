@@ -1,7 +1,7 @@
 package gater
 
 import (
-	"encoding/xml"
+	"encoding/json"
 	"net/http"
 	"strconv"
 
@@ -53,23 +53,28 @@ var (
 	ErrConsensus = gfsperrors.Register(module.GateModularName, http.StatusBadRequest, 55001, "server slipped away, try again later")
 )
 
+type ErrResponseJson struct {
+	Code    int32
+	Message string
+}
+
 func MakeErrorResponse(w http.ResponseWriter, err error) {
 	gfspErr := gfsperrors.MakeGfSpError(err)
-	var xmlInfo = struct {
-		XMLName xml.Name `xml:"Error"`
-		Code    int32    `xml:"Code"`
-		Message string   `xml:"Message"`
-	}{
+
+	response := ErrResponseJson{
 		Code:    gfspErr.GetInnerCode(),
 		Message: gfspErr.GetDescription(),
 	}
-	xmlBody, err := xml.Marshal(&xmlInfo)
+
+	js, err := json.Marshal(response)
 	if err != nil {
-		log.Errorw("failed to marshal error response", "error", gfspErr.String())
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
+
 	w.Header().Set(ContentTypeHeader, ContentTypeXMLHeaderValue)
 	w.WriteHeader(int(gfspErr.GetHttpStatusCode()))
-	if _, err = w.Write(xmlBody); err != nil {
+	if _, err = w.Write(js); err != nil {
 		log.Errorw("failed to write error response", "error", gfspErr.String())
 	}
 }
