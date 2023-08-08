@@ -59,6 +59,7 @@ func (s *GfSpClient) GetPiece(ctx context.Context, downloadPieceTask coretask.Do
 		return nil, ErrRPCUnknown
 	}
 	if resp.GetErr() != nil {
+		log.CtxErrorw(ctx, "client failed to download piece2", "error", resp.GetErr())
 		return nil, resp.GetErr()
 	}
 	return resp.GetData(), nil

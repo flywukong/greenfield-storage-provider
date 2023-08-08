@@ -25,12 +25,13 @@ var (
 	ErrDanglingPointer   = gfsperrors.Register(module.DownloadModularName, http.StatusBadRequest, 30001, "OoooH.... request lost")
 	ErrObjectUnsealed    = gfsperrors.Register(module.DownloadModularName, http.StatusBadRequest, 30002, "object unsealed")
 	ErrExceedRequest     = gfsperrors.Register(module.DownloadModularName, http.StatusBadRequest, 30003, "get piece request exceed")
-	ErrExceedBucketQuota = gfsperrors.Register(module.DownloadModularName, http.StatusNotAcceptable, 30004, "bucket quota overflow")
-	ErrInvalidParam      = gfsperrors.Register(module.DownloadModularName, http.StatusBadRequest, 30005, "request params invalid")
-	ErrNoSuchPiece       = gfsperrors.Register(module.DownloadModularName, http.StatusBadRequest, 30006, "request params invalid, no such piece")
-	ErrPieceStore        = gfsperrors.Register(module.DownloadModularName, http.StatusInternalServerError, 35101, "server slipped away, try again later")
-	ErrGfSpDB            = gfsperrors.Register(module.DownloadModularName, http.StatusInternalServerError, 35201, "server slipped away, try again later")
-	ErrKeyFormat         = gfsperrors.Register(module.DownloadModularName, http.StatusBadRequest, 30007, "invalid key format")
+	ErrExceedBucketQuota = gfsperrors.Register(module.DownloadModularName, http.StatusNotAcceptable, 30010,
+		"bucket quota overflow")
+	ErrInvalidParam = gfsperrors.Register(module.DownloadModularName, http.StatusBadRequest, 30005, "request params invalid")
+	ErrNoSuchPiece  = gfsperrors.Register(module.DownloadModularName, http.StatusBadRequest, 30006, "request params invalid, no such piece")
+	ErrPieceStore   = gfsperrors.Register(module.DownloadModularName, http.StatusInternalServerError, 35101, "server slipped away, try again later")
+	ErrGfSpDB       = gfsperrors.Register(module.DownloadModularName, http.StatusInternalServerError, 35201, "server slipped away, try again later")
+	ErrKeyFormat    = gfsperrors.Register(module.DownloadModularName, http.StatusBadRequest, 30007, "invalid key format")
 
 	ErrConsensus = gfsperrors.Register(module.DownloadModularName, http.StatusInternalServerError, 35002, "server slipped away, try again later")
 )
@@ -92,7 +93,7 @@ func (d *DownloadModular) PreDownloadObject(ctx context.Context, downloadObjectT
 	); err != nil {
 		log.CtxErrorw(ctx, "failed to check bucket quota", "error", err)
 		if errors.Is(err, sqldb.ErrCheckQuotaEnough) {
-			return ErrExceedBucketQuota
+			return ErrPieceStore
 		}
 		// ignore the access db error, it is the system's inner error, will be let the request go.
 	}

@@ -15,6 +15,7 @@ var (
 	ErrAuthorizationHeaderFormat = gfsperrors.Register(module.GateModularName, http.StatusBadRequest, 50002, "authorization header format error")
 	ErrRequestConsistent         = gfsperrors.Register(module.GateModularName, http.StatusBadRequest, 50003, "request is tampered")
 	ErrNoPermission              = gfsperrors.Register(module.GateModularName, http.StatusUnauthorized, 50004, "no permission")
+
 	ErrDecodeMsg                 = gfsperrors.Register(module.GateModularName, http.StatusBadRequest, 50005, "gnfd msg encoding error")
 	ErrValidateMsg               = gfsperrors.Register(module.GateModularName, http.StatusBadRequest, 50006, "gnfd msg validate error")
 	ErrRefuseApproval            = gfsperrors.Register(module.GateModularName, http.StatusOK, 50007, "approval request is refuse")
@@ -49,20 +50,27 @@ var (
 	ErrNotifySwapOut          = gfsperrors.Register(module.GateModularName, http.StatusInternalServerError, 50034, "server slipped away, try again later")
 	ErrInvalidRedundancyIndex = gfsperrors.Register(module.GateModularName, http.StatusInternalServerError, 50035, "invalid redundancy index")
 	ErrBucketUnavailable      = gfsperrors.Register(module.GateModularName, http.StatusForbidden, 50036, "bucket is not in service status")
+	ErrBucketQuota            = gfsperrors.Register(module.GateModularName, http.StatusNotAcceptable, 50037,
+		"bucket quota overflow")
 
 	ErrConsensus = gfsperrors.Register(module.GateModularName, http.StatusBadRequest, 55001, "server slipped away, try again later")
 )
 
 func MakeErrorResponse(w http.ResponseWriter, err error) {
 	gfspErr := gfsperrors.MakeGfSpError(err)
+
+	codeInfo := gfspErr.GetInnerCode()
+	msgInfo := gfspErr.GetDescription()
 	var xmlInfo = struct {
 		XMLName xml.Name `xml:"Error"`
 		Code    int32    `xml:"Code"`
 		Message string   `xml:"Message"`
 	}{
-		Code:    gfspErr.GetInnerCode(),
-		Message: gfspErr.GetDescription(),
+		Code:    codeInfo,
+		Message: msgInfo,
 	}
+
+	log.Debugw(" marshal error response", "code info", codeInfo, "msg info", msgInfo)
 	xmlBody, err := xml.Marshal(&xmlInfo)
 	if err != nil {
 		log.Errorw("failed to marshal error response", "error", gfspErr.String())
