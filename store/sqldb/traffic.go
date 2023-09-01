@@ -268,17 +268,17 @@ func (s *SpDBImpl) UpdateExtraQuota(bucketID, extraQuota uint64) error {
 			return fmt.Errorf("failed to query bucket traffic table: %v", err)
 		}
 
-		updatedReadConsumed := newestTraffic.ReadConsumedSize - extraQuota
-		if updatedReadConsumed < 0 {
+		if newestTraffic.ReadConsumedSize < extraQuota {
 			return fmt.Errorf("the extra quota %d to reimburse should be less than read consumed quota %d", extraQuota, newestTraffic.ReadConsumedSize)
 		}
+		updatedReadConsumed := newestTraffic.ReadConsumedSize - extraQuota
 
 		// if the free quota has not exhaust even after consumed extra quota, the consumed free quota should be updated
 		if newestTraffic.FreeQuotaSize-newestTraffic.FreeQuotaConsumedSize > 0 {
-			updatedFreeConsumed := newestTraffic.FreeQuotaConsumedSize - extraQuota
-			if updatedFreeConsumed < 0 {
+			if newestTraffic.FreeQuotaConsumedSize < extraQuota {
 				return fmt.Errorf("the extra quota %d to reimburse should be less than read consumed quota %d", extraQuota, newestTraffic.ReadConsumedSize)
 			}
+			updatedFreeConsumed := newestTraffic.FreeQuotaConsumedSize - extraQuota
 
 			err = tx.Model(&newestTraffic).
 				Updates(BucketTrafficTable{
@@ -294,12 +294,20 @@ func (s *SpDBImpl) UpdateExtraQuota(bucketID, extraQuota uint64) error {
 			// if the freeQuota is 10G and remained 9G at the beginning of this month, but the consumedQuota is 13G after suffering 2G extra quota,
 			// the consumedQuota should update to 11G and the consumed freeQuota should not be changed
 			var secondaryNewestTraffic BucketTrafficTable
+			var freeQuotaRemained uint64
 			queryErr := tx.Where("bucket_id = ?", bucketID).Order("Month DESC").Offset(1).Limit(1).Find(&secondaryNewestTraffic).Error
+			// the free quota remained at the beginning of this month should compute by the record of last month if it exists.
+			// if not exists, the free quota remained at the beginning is free quota total size
 			if queryErr != nil {
-
+				if !errors.Is(queryErr, gorm.ErrRecordNotFound) {
+					return queryErr
+				} else {
+					freeQuotaRemained = newestTraffic.FreeQuotaSize
+				}
+			} else {
+				freeQuotaRemained = secondaryNewestTraffic.FreeQuotaSize - secondaryNewestTraffic.FreeQuotaConsumedSize
 			}
-			// the free quota remained at the beginning of this month should compute by the record of last month
-			freeQuotaRemained := secondaryNewestTraffic.FreeQuotaSize - secondaryNewestTraffic.FreeQuotaConsumedSize
+
 			if updatedReadConsumed > freeQuotaRemained {
 				// the extra data has not contained free quota, no need to update free consumed quota
 				err = tx.Model(&newestTraffic).

@@ -36,14 +36,13 @@ message GfSpGetChallengeInfoResponse {
 }
 
 message GfSpReimburseQuotaRequest {
-    uint64 bucket_id = 1;
-    uint64 extra_quota = 2;
+  uint64 bucket_id = 1;
+  uint64 extra_quota = 2;
 }
 
 message GfSpReimburseQuotaResponse {
   base.types.gfsperrors.GfSpError err = 1;
 }
-
 
 service GfSpDownloadService {
   rpc GfSpDownloadObject(GfSpDownloadObjectRequest) returns (GfSpDownloadObjectResponse) {}
