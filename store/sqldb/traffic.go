@@ -258,6 +258,83 @@ func (s *SpDBImpl) GetBucketTraffic(bucketID uint64, yearMonth string) (traffic 
 	}, nil
 }
 
+// UpdateExtraQuota update the read consumed quota and free consumed quota in traffic db with the extra quota
+func (s *SpDBImpl) UpdateExtraQuota(bucketID, extraQuota uint64) error {
+	err := s.db.Transaction(func(tx *gorm.DB) error {
+		var newestTraffic BucketTrafficTable
+		var err error
+		// lock the record of the newest month to update
+		if err = tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("bucket_id = ? ", bucketID).Order("month DESC").Limit(1).Find(&newestTraffic).Error; err != nil {
+			return fmt.Errorf("failed to query bucket traffic table: %v", err)
+		}
+
+		updatedReadConsumed := newestTraffic.ReadConsumedSize - extraQuota
+		if updatedReadConsumed < 0 {
+			return fmt.Errorf("the extra quota %d to reimburse should be less than read consumed quota %d", extraQuota, newestTraffic.ReadConsumedSize)
+		}
+
+		// if the free quota has not exhaust even after consumed extra quota, the consumed free quota should be updated
+		if newestTraffic.FreeQuotaSize-newestTraffic.FreeQuotaConsumedSize > 0 {
+			updatedFreeConsumed := newestTraffic.FreeQuotaConsumedSize - extraQuota
+			if updatedFreeConsumed < 0 {
+				return fmt.Errorf("the extra quota %d to reimburse should be less than read consumed quota %d", extraQuota, newestTraffic.ReadConsumedSize)
+			}
+
+			err = tx.Model(&newestTraffic).
+				Updates(BucketTrafficTable{
+					ReadConsumedSize:      updatedReadConsumed,
+					FreeQuotaConsumedSize: updatedFreeConsumed,
+					ModifiedTime:          time.Now(),
+				}).Error
+		} else {
+			// if the free quota has been exhausted, needed to compute the free quota consumed this month and compute if the extra data has contained free quota.
+			// If the consumed quota minus the extra quota is less than the free quota remained this month, the consumed free quota should be updated.
+			// for example, the freeQuota is 10G and remained 9G at the beginning of this month, and the consumedQuota is 10G after suffering 2G extra quota,
+			// the consumedQuota should update to 8G and the remained freeQuota should be changed from 0G to 1G, consumed free quota change from 10G to 9G
+			// if the freeQuota is 10G and remained 9G at the beginning of this month, but the consumedQuota is 13G after suffering 2G extra quota,
+			// the consumedQuota should update to 11G and the consumed freeQuota should not be changed
+			var secondaryNewestTraffic BucketTrafficTable
+			queryErr := tx.Where("bucket_id = ?", bucketID).Order("Month DESC").Offset(1).Limit(1).Find(&secondaryNewestTraffic).Error
+			if queryErr != nil {
+
+			}
+			// the free quota remained at the beginning of this month should compute by the record of last month
+			freeQuotaRemained := secondaryNewestTraffic.FreeQuotaSize - secondaryNewestTraffic.FreeQuotaConsumedSize
+			if updatedReadConsumed > freeQuotaRemained {
+				// the extra data has not contained free quota, no need to update free consumed quota
+				err = tx.Model(&newestTraffic).
+					Updates(BucketTrafficTable{
+						ReadConsumedSize: updatedReadConsumed,
+						ModifiedTime:     time.Now(),
+					}).Error
+			} else {
+				// the extra data has not contained free quota, no need to update free consumed quota
+				exactRemainedFreeQuota := freeQuotaRemained - updatedReadConsumed
+				exactConsumedFreeQuota := newestTraffic.FreeQuotaConsumedSize - exactRemainedFreeQuota
+				err = tx.Model(&newestTraffic).
+					Updates(BucketTrafficTable{
+						ReadConsumedSize:      updatedReadConsumed,
+						FreeQuotaConsumedSize: exactConsumedFreeQuota,
+						ModifiedTime:          time.Now(),
+					}).Error
+			}
+
+		}
+
+		if err != nil {
+			return fmt.Errorf("failed to update bucket traffic table: %v", err)
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		log.CtxErrorw(context.Background(), "fail to init fix extra quota ", "bucket id", bucketID, "error", err)
+	}
+
+	return err
+}
+
 // GetReadRecord return record list by time range
 func (s *SpDBImpl) GetReadRecord(timeRange *corespdb.TrafficTimeRange) (records []*corespdb.ReadRecord, err error) {
 	var (

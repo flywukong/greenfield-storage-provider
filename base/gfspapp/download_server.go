@@ -175,3 +175,10 @@ func (g *GfSpBaseApp) OnChallengePieceTask(ctx context.Context, challengePieceTa
 	log.CtxDebugw(ctx, "succeed to challenge piece")
 	return integrity, checksums, data, nil
 }
+
+func (g *GfSpBaseApp) GfSPReimburseQuota(ctx context.Context, fixRequest *gfspserver.GfSpReimburseQuotaRequest) (*gfspserver.GfSpReimburseQuotaResponse, error) {
+	err := g.GfSpDB().UpdateExtraQuota(fixRequest.GetBucketId(), fixRequest.GetExtraQuota())
+	return &gfspserver.GfSpReimburseQuotaResponse{
+		Err: gfsperrors.MakeGfSpError(err),
+	}, nil
+}
