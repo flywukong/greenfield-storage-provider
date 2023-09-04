@@ -260,6 +260,7 @@ func (s *SpDBImpl) GetBucketTraffic(bucketID uint64, yearMonth string) (traffic 
 
 // UpdateExtraQuota update the read consumed quota and free consumed quota in traffic db with the extra quota
 func (s *SpDBImpl) UpdateExtraQuota(bucketID, extraQuota uint64) error {
+	log.CtxErrorw(context.Background(), "begin to update extra quota for traffic db", "extra quota", extraQuota)
 	err := s.db.Transaction(func(tx *gorm.DB) error {
 		var newestTraffic BucketTrafficTable
 		var err error

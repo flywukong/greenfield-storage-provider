@@ -399,6 +399,7 @@ func (g *GateModular) getObjectHandler(w http.ResponseWriter, r *http.Request) {
 				if quotaUpdateErr != nil {
 					log.CtxErrorw(reqCtx.Context(), "failed to recoup extra quota to user", "error", err)
 				}
+				log.CtxDebugw(reqCtx.Context(), "sucess to recoup extra quota to user", "extra quota:", extraQuota)
 			}
 			log.CtxDebugw(reqCtx.Context(), "get object error")
 			reqCtx.SetError(gfsperrors.MakeGfSpError(err))
@@ -588,6 +589,12 @@ func (g *GateModular) getObjectHandler(w http.ResponseWriter, r *http.Request) {
 		// the quota value should be computed by the reply content length
 		consumedQuota += uint64(replyDataSize)
 		metrics.PerfGetObjectTimeHistogram.WithLabelValues("get_object_write_time").Observe(time.Since(writeTime).Seconds())
+	}
+	// consumedQuota should be equal to download total size after all the data has been downloaded
+	if consumedQuota != downloadSize {
+		log.CtxErrorw(reqCtx.Context(), "consumed quota not equal to download size:", "consumed quota", consumedQuota, "downloadSize", downloadSize)
+	} else {
+		log.CtxDebugw(reqCtx.Context(), "consumed quota  equal to download size")
 	}
 
 	metrics.ReqPieceSize.WithLabelValues(GatewayGetObjectSize).Observe(float64(highOffset - lowOffset + 1))
