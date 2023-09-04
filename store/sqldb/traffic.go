@@ -305,6 +305,7 @@ func (s *SpDBImpl) UpdateExtraQuota(bucketID, extraQuota uint64) error {
 					return queryErr
 				} else {
 					freeQuotaRemained = newestTraffic.FreeQuotaSize
+					log.CtxDebugw(context.Background(), "failed to find quota last month", "remained free:", freeQuotaRemained)
 				}
 			} else {
 				freeQuotaRemained = secondaryNewestTraffic.FreeQuotaSize - secondaryNewestTraffic.FreeQuotaConsumedSize
