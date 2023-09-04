@@ -273,7 +273,8 @@ func (s *SpDBImpl) UpdateExtraQuota(bucketID, extraQuota uint64) error {
 			return fmt.Errorf("the extra quota %d to reimburse should be less than read consumed quota %d", extraQuota, newestTraffic.ReadConsumedSize)
 		}
 		updatedReadConsumed := newestTraffic.ReadConsumedSize - extraQuota
-
+		log.CtxDebugw(context.Background(), "updated read consumed quota with extra quota:", "consumed:", newestTraffic.ReadConsumedSize,
+			"extra", extraQuota, "updated:", updatedReadConsumed)
 		// if the free quota has not exhaust even after consumed extra quota, the consumed free quota should be updated
 		if newestTraffic.FreeQuotaSize-newestTraffic.FreeQuotaConsumedSize > 0 {
 			if newestTraffic.FreeQuotaConsumedSize < extraQuota {
@@ -317,7 +318,7 @@ func (s *SpDBImpl) UpdateExtraQuota(bucketID, extraQuota uint64) error {
 						ModifiedTime:     time.Now(),
 					}).Error
 			} else {
-				// the extra data has not contained free quota, no need to update free consumed quota
+				// the extra data has not contained free quota,  need to update free consumed quota
 				exactRemainedFreeQuota := freeQuotaRemained - updatedReadConsumed
 				exactConsumedFreeQuota := newestTraffic.FreeQuotaConsumedSize - exactRemainedFreeQuota
 				err = tx.Model(&newestTraffic).
