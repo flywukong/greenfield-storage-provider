@@ -390,7 +390,6 @@ func (g *GateModular) getObjectHandler(w http.ResponseWriter, r *http.Request) {
 	)
 	getObjectStartTime := time.Now()
 	defer func() {
-		reqCtx.Cancel()
 		if err != nil {
 			// if the bucket exists extra quota when download object, recoup the quota to user
 			if extraQuota > 0 {
@@ -417,6 +416,7 @@ func (g *GateModular) getObjectHandler(w http.ResponseWriter, r *http.Request) {
 			metrics.ReqTime.WithLabelValues(GatewaySuccessGetObject).Observe(time.Since(getObjectStartTime).Seconds())
 		}
 		log.CtxDebugw(reqCtx.Context(), reqCtx.String())
+		reqCtx.Cancel()
 	}()
 
 	// GNFD1-ECDSA or GNFD1-EDDSA authentication, by checking the headers.
