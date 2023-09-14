@@ -445,10 +445,14 @@ func (g *GateModular) replicateHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = g.checkReplicatePermission(receiveTask, signatureAddr.String())
-	if err != nil {
-		log.CtxErrorw(reqCtx.Context(), "failed to check the replicate permission", "error", err)
-		return
+	if !receiveTask.BucketMigration {
+		err = g.checkReplicatePermission(receiveTask, signatureAddr.String())
+		if err != nil {
+			log.CtxErrorw(reqCtx.Context(), "failed to check the replicate permission", "error", err)
+			return
+		}
+	} else {
+		log.CtxDebug(reqCtx.Context(), "it is bucket migration")
 	}
 
 	if receiveTask.GetObjectInfo() == nil || int(receiveTask.GetRedundancyIdx()) >= len(receiveTask.GetObjectInfo().GetChecksums()) {
@@ -506,12 +510,14 @@ func (g *GateModular) checkReplicatePermission(receiveTask gfsptask.GfSpReceiveP
 		return ErrConsensusWithDetail("QueryBucketInfo error: " + err.Error())
 	}
 
+	log.CtxDebug(ctx, "check replicate permission begin1")
+
 	gvg, err := g.baseApp.GfSpClient().GetGlobalVirtualGroup(ctx, bucketInfo.Id.Uint64(), receiveTask.GetGlobalVirtualGroupID())
 	if err != nil {
 		err = ErrConsensusWithDetail("QueryGVGInfo error: " + err.Error())
 		return ErrConsensusWithDetail("QueryGVGInfo error: " + err.Error())
 	}
-
+	log.CtxDebug(ctx, "check replicate permission begin2")
 	// judge if sender is the primary sp of the gvg
 	primarySp, err := g.baseApp.Consensus().QuerySPByID(ctx, gvg.PrimarySpId)
 	if err != nil {
@@ -519,6 +525,7 @@ func (g *GateModular) checkReplicatePermission(receiveTask gfsptask.GfSpReceiveP
 		return ErrConsensusWithDetail("QuerySPInfo error: " + err.Error())
 	}
 
+	log.CtxDebug(ctx, "check replicate permission begin3")
 	if primarySp.GetOperatorAccAddress().String() != signatureAddr {
 		log.CtxErrorw(ctx, "primary sp mismatch", "expect",
 			primarySp.GetOperatorAccAddress().String(), "current", signatureAddr)
@@ -526,12 +533,14 @@ func (g *GateModular) checkReplicatePermission(receiveTask gfsptask.GfSpReceiveP
 		return ErrPrimaryMismatch
 	}
 
+	log.CtxDebug(ctx, "check replicate permission begin4")
 	// judge if myself is the right secondary sp of the gvg
 	spID, err := g.getSPID()
 	if err != nil {
 		err = ErrConsensusWithDetail("getSPID error: " + err.Error())
 		return ErrConsensusWithDetail("getSPID error: " + err.Error())
 	}
+	log.CtxDebug(ctx, "check replicate permission begin5")
 
 	expectSecondarySPID := gvg.GetSecondarySpIds()[int(receiveTask.GetRedundancyIdx())]
 	if expectSecondarySPID != spID {

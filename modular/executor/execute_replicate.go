@@ -185,7 +185,7 @@ func (e *ExecuteModular) handleReplicatePiece(ctx context.Context, rTask coretas
 	for {
 		select {
 		case replicateErr = <-errChan:
-			cancel()
+			log.Debugw("sd", "failed to ec encode data", 100)
 		case <-quitChan:
 			if replicateErr != nil {
 				return replicateErr
