@@ -517,6 +517,11 @@ func (g *GateModular) checkReplicatePermission(receiveTask gfsptask.GfSpReceiveP
 		err = ErrConsensusWithDetail("QueryGVGInfo error: " + err.Error())
 		return ErrConsensusWithDetail("QueryGVGInfo error: " + err.Error())
 	}
+
+	if gvg == nil {
+		log.CtxDebug(ctx, "check replicate permission begin error nil")
+	}
+
 	log.CtxDebug(ctx, "check replicate permission begin2")
 	// judge if sender is the primary sp of the gvg
 	primarySp, err := g.baseApp.Consensus().QuerySPByID(ctx, gvg.PrimarySpId)

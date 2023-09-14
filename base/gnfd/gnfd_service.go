@@ -243,7 +243,9 @@ func (g *Gnfd) QuerySPPrice(ctx context.Context, operatorAddress string) (sptype
 // QuerySPByID returns the sp info.
 func (g *Gnfd) QuerySPByID(ctx context.Context, spID uint32) (*sptypes.StorageProvider, error) {
 	startTime := time.Now()
-	defer metrics.GnfdChainTime.WithLabelValues("query_sp_by_id").Observe(time.Since(startTime).Seconds())
+	defer func() {
+		log.Debugw("QuerySPByID cost time,", time.Since(startTime).Milliseconds(), "ms")
+	}()
 	client := g.getCurrentClient().GnfdClient()
 	resp, err := client.StorageProvider(ctx, &sptypes.QueryStorageProviderRequest{
 		Id: spID,
