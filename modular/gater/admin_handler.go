@@ -489,41 +489,57 @@ func (g *GateModular) replicateHandler(w http.ResponseWriter, r *http.Request) {
 
 func (g *GateModular) checkReplicatePermission(receiveTask gfsptask.GfSpReceivePieceTask, signatureAddr string) error {
 	ctx := context.Background()
+	log.CtxDebug(ctx, "check replicate permission begin")
+
+	var err error
+	defer func() {
+		log.CtxDebug(ctx, "check replicate permission done", "error", err)
+		if err != nil {
+			log.CtxDebug(ctx, "check replicate permission err", "error", err)
+		}
+	}()
+
 	// check if the request account is the primary SP of the object of the receiving task
 	bucketInfo, err := g.baseApp.Consensus().QueryBucketInfo(ctx, receiveTask.GetObjectInfo().BucketName)
 	if err != nil {
+		err = ErrConsensusWithDetail("QueryBucketInfo error: " + err.Error())
 		return ErrConsensusWithDetail("QueryBucketInfo error: " + err.Error())
 	}
 
 	gvg, err := g.baseApp.GfSpClient().GetGlobalVirtualGroup(ctx, bucketInfo.Id.Uint64(), receiveTask.GetGlobalVirtualGroupID())
 	if err != nil {
+		err = ErrConsensusWithDetail("QueryGVGInfo error: " + err.Error())
 		return ErrConsensusWithDetail("QueryGVGInfo error: " + err.Error())
 	}
 
 	// judge if sender is the primary sp of the gvg
 	primarySp, err := g.baseApp.Consensus().QuerySPByID(ctx, gvg.PrimarySpId)
 	if err != nil {
+		err = ErrConsensusWithDetail("QuerySPInfo error: " + err.Error())
 		return ErrConsensusWithDetail("QuerySPInfo error: " + err.Error())
 	}
 
 	if primarySp.GetOperatorAccAddress().String() != signatureAddr {
 		log.CtxErrorw(ctx, "primary sp mismatch", "expect",
 			primarySp.GetOperatorAccAddress().String(), "current", signatureAddr)
+		err = ErrPrimaryMismatch
 		return ErrPrimaryMismatch
 	}
 
 	// judge if myself is the right secondary sp of the gvg
 	spID, err := g.getSPID()
 	if err != nil {
+		err = ErrConsensusWithDetail("getSPID error: " + err.Error())
 		return ErrConsensusWithDetail("getSPID error: " + err.Error())
 	}
 
 	expectSecondarySPID := gvg.GetSecondarySpIds()[int(receiveTask.GetRedundancyIdx())]
 	if expectSecondarySPID != spID {
+		err = ErrSecondaryMismatch
 		log.CtxErrorw(ctx, "secondary sp mismatch", "expect", expectSecondarySPID, "current", spID)
 		return ErrSecondaryMismatch
 	}
-
+	log.CtxDebug(ctx, "check replicate permission end")
 	return nil
 }
 
