@@ -503,16 +503,7 @@ func (g *GateModular) checkReplicatePermission(receiveTask gfsptask.GfSpReceiveP
 		}
 	}()
 
-	// check if the request account is the primary SP of the object of the receiving task
-	_, err = g.baseApp.Consensus().QueryBucketInfo(ctx, receiveTask.GetObjectInfo().BucketName)
-	if err != nil {
-		err = ErrConsensusWithDetail("QueryBucketInfo error: " + err.Error())
-		return ErrConsensusWithDetail("QueryBucketInfo error: " + err.Error())
-	}
-
-	log.CtxDebug(ctx, "check replicate permission begin1")
-
-	gvg, err := g.baseApp.Consensus().QueryGlobalVirtualGroup(ctx, receiveTask.GetGlobalVirtualGroupID())
+	gvg, err := g.baseApp.GfSpClient().GetGlobalVirtualGroupByGvgID(ctx, receiveTask.GetGlobalVirtualGroupID())
 	if err != nil {
 		return ErrConsensusWithDetail("QueryGVGInfo error: " + err.Error())
 	}
