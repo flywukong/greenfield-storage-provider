@@ -449,6 +449,7 @@ func (g *GateModular) replicateHandler(w http.ResponseWriter, r *http.Request) {
 		err = ErrTaskMsgExpired
 		return
 	}
+	log.CtxDebugw(reqCtx.Context(), "the update time diff", "diff", timeDifference)
 
 	err = g.checkReplicatePermission(reqCtx.Context(), receiveTask, signatureAddr.String())
 	if err != nil {

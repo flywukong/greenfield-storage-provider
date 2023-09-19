@@ -67,17 +67,21 @@ func (s *GfSpClient) ReplicatePieceToSecondary(ctx context.Context, endpoint str
 	}
 
 	receiveTask := receive.(*gfsptask.GfSpReceivePieceTask)
+	log.CtxDebugw(ctx, "receiver task info", "id", receiveTask.RedundancyIdx,
+		"object name", receiveTask.ObjectInfo.ObjectName, "update time", receiveTask.GetUpdateTime())
 	receiveMsg, err := json.Marshal(receiveTask)
 	if err != nil {
 		log.CtxErrorw(ctx, "failed to replicate piece to secondary sp due to marshal error", "error", err)
 		return err
 	}
 	receiveHeader := hex.EncodeToString(receiveMsg)
+	log.CtxDebugw(ctx, "receiver header", "header encoding", receiveHeader)
 	req.Header.Add(GnfdReceiveMsgHeader, receiveHeader)
 	resp, err := s.HTTPClient(ctx).Do(req)
 	if err != nil {
 		return err
 	}
+	fmt.Println("http header", GnfdReceiveMsgHeader, receiveHeader)
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("failed to replicate piece, status_code(%d) endpoint(%s)", resp.StatusCode, endpoint)
